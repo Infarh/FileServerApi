@@ -2,5 +2,5 @@
 
 public interface IJWTProvider
 {
-    string GetToken(string User, string Role, DateTime Time);
+    (string Token, DateTime Expires) GetToken(string User, string Role, DateTime Time);
 }

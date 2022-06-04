@@ -13,7 +13,7 @@ public class JWTProvider : IJWTProvider
 
     public JWTProvider(IConfiguration Configuration) => _Configuration = Configuration;
 
-    public string GetToken(string User, string Role, DateTime Time)
+    public (string Token, DateTime Expires) GetToken(string User, string Role, DateTime Time)
     {
         var key = _Configuration["JwtAuth:Key"];
         var issuer = _Configuration["JwtAuth:Issuer"];
@@ -40,6 +40,6 @@ public class JWTProvider : IJWTProvider
 
         var token_str = new JwtSecurityTokenHandler().WriteToken(token);
 
-        return token_str;
+        return (token_str, expires);
     }
 }

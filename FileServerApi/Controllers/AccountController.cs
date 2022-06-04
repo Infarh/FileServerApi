@@ -9,11 +9,13 @@ public class AccountController : ControllerBase
 {
     private readonly IIdentityManager _IdentityManager;
     private readonly IJWTProvider _JWTProvider;
+    private readonly ILogger<AccountController> _Logger;
 
-    public AccountController(IIdentityManager IdentityManager, IJWTProvider JWTProvider)
+    public AccountController(IIdentityManager IdentityManager, IJWTProvider JWTProvider, ILogger<AccountController> Logger)
     {
         _IdentityManager = IdentityManager;
         _JWTProvider = JWTProvider;
+        _Logger = Logger;
     }
 
     [HttpPost("login")]
@@ -22,14 +24,20 @@ public class AccountController : ControllerBase
         if (!_IdentityManager.Login(Model.UserName, Model.Password))
             return BadRequest();
 
-        var role = _IdentityManager.GetRoles(Model.UserName).FirstOrDefault();
+        var role = _IdentityManager.GetRoles(Model.UserName).FirstOrDefault() ?? "User";
 
-        var token_str = _JWTProvider.GetToken(Model.UserName, role ?? "User", DateTime.Now);
+        var time = DateTime.Now;
+        var (token_str, expires) = _JWTProvider.GetToken(Model.UserName, role, time);
+
+        _Logger.LogInformation("Сформирован jwt для {0}. Выдан {1}. Истекает {2}", 
+            Model.UserName, time, expires);
+
         return Ok(new
         {
             Autorization = $"Bearer {token_str}",
             Token = token_str,
             Model.UserName,
+            Expires = expires,
         });
     }
 }

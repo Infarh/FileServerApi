@@ -11,7 +11,8 @@ namespace FileServerApi.Controllers;
 
 [ApiController, Route("api/v1/files")]
 //[Authorize(AuthenticationSchemes = JwtBearerDefaults.AuthenticationScheme)]
-[ProducesResponseType(StatusCodes.Status401Unauthorized)]
+[ProducesResponseType(StatusCodes.Status401Unauthorized)] 
+[Authorize]
 public class FilesController : ControllerBase
 {
     private readonly IWebHostEnvironment _Environment;
@@ -32,18 +33,6 @@ public class FilesController : ControllerBase
     {
         _Logger.LogInformation("User {0}", User.Identity?.Name ?? "--null--");
 
-        var dir = _Environment.ContentRootFileProvider.GetDirectoryContents(_Configuration["ContentDir"]);
-        if (dir.Any())
-            return Ok(dir.Select(f => f.Name));
-        return NoContent();
-    }
-
-    [HttpGet("all")]
-    [ProducesResponseType(typeof(string[]), StatusCodes.Status200OK)]
-    [ProducesResponseType(StatusCodes.Status204NoContent)]
-    [Authorize(Roles = "User")]
-    public IActionResult GetAllFilesNames1()
-    {
         var dir = _Environment.ContentRootFileProvider.GetDirectoryContents(_Configuration["ContentDir"]);
         if (dir.Any())
             return Ok(dir.Select(f => f.Name));
@@ -71,6 +60,7 @@ public class FilesController : ControllerBase
     }
 
     [HttpPost]
+    [Authorize(Roles = "Admin")]
     [ProducesResponseType(StatusCodes.Status200OK)]
     public async Task<IActionResult> UploadFile(IFormFile file)
     {
@@ -88,6 +78,7 @@ public class FilesController : ControllerBase
     }
 
     [HttpDelete("{FileName}")]
+    [Authorize(Roles = "Admin")]
     [ProducesResponseType(StatusCodes.Status200OK)]
     [ProducesResponseType(StatusCodes.Status404NotFound)]
     public IActionResult DeleteFile(string FileName)
@@ -100,6 +91,8 @@ public class FilesController : ControllerBase
         var physical_file = new FileInfo(file.PhysicalPath);
         physical_file.Delete();
 
+        _Logger.LogInformation("Файл {0} удалён", physical_file);
+
         return Ok(new
         {
             FileName,
@@ -108,6 +101,7 @@ public class FilesController : ControllerBase
     }
 
     [HttpPost("{FileSourceName}/copyto/{FileDestinationName}")]
+    [Authorize(Roles = "Admin")]
     [ProducesResponseType(StatusCodes.Status200OK)]
     [ProducesResponseType(StatusCodes.Status404NotFound)]
     public IActionResult CopyFile(string FileSourceName, string FileDestinationName)
@@ -124,6 +118,8 @@ public class FilesController : ControllerBase
 
         source_file.CopyTo(destination_file.FullName, true);
 
+        _Logger.LogInformation("Файл {0} удалён в {1}", source_file, destination_file);
+
         return Ok(new
         {
             Source = FileSourceName,
@@ -131,13 +127,17 @@ public class FilesController : ControllerBase
         });
     }
 
-    private async Task<IActionResult> HashFile(FileInfo server_file, HashAlgorithm hasher)
+    private static async Task<string> HashStreamAsync(HashAlgorithm hasher, Stream file_stream)
+    {
+        var hash = await hasher.ComputeHashAsync(file_stream);
+        var hash_str = string.Join("", hash.Select(b => b.ToString("X2")));
+        return hash_str;
+    }
+
+    private async Task<IActionResult> HashFileAsync(FileInfo server_file, HashAlgorithm hasher)
     {
         await using var file_stream = server_file.OpenRead();
-        var hash = await hasher.ComputeHashAsync(file_stream);
-
-        var hash_str = string.Join("", hash.Select(b => b.ToString("X2")));
-
+        var hash_str = await HashStreamAsync(hasher, file_stream);
         return Content(hash_str);
     }
 
@@ -154,7 +154,7 @@ public class FilesController : ControllerBase
         var server_file = new FileInfo(file.PhysicalPath);
 
         using var hasher = System.Security.Cryptography.MD5.Create();
-        return await HashFile(server_file, hasher);
+        return await HashFileAsync(server_file, hasher);
     }
 
     [HttpGet("{FileName}/SHA1")]
@@ -170,7 +170,7 @@ public class FilesController : ControllerBase
         var server_file = new FileInfo(file.PhysicalPath);
 
         using var hasher = SHA1.Create();
-        return await HashFile(server_file, hasher);
+        return await HashFileAsync(server_file, hasher);
     }
 
     [HttpGet("{FileName}/SHA256")]
@@ -186,7 +186,7 @@ public class FilesController : ControllerBase
         var server_file = new FileInfo(file.PhysicalPath);
 
         using var hasher = SHA256.Create();
-        return await HashFile(server_file, hasher);
+        return await HashFileAsync(server_file, hasher);
     }
 
     [HttpGet("{FileName}/SHA384")]
@@ -202,7 +202,7 @@ public class FilesController : ControllerBase
         var server_file = new FileInfo(file.PhysicalPath);
 
         using var hasher = SHA384.Create();
-        return await HashFile(server_file, hasher);
+        return await HashFileAsync(server_file, hasher);
     }
 
     [HttpGet("{FileName}/SHA512")]
@@ -218,6 +218,51 @@ public class FilesController : ControllerBase
         var server_file = new FileInfo(file.PhysicalPath);
 
         using var hasher = SHA512.Create();
-        return await HashFile(server_file, hasher);
+        return await HashFileAsync(server_file, hasher);
+    }
+
+    [HttpPost("MD5")]
+    [ProducesResponseType(StatusCodes.Status200OK)]
+    public async Task<IActionResult> GetMD5(IFormFile file)
+    {
+        using var hasher = MD5.Create();
+        var hash = await HashStreamAsync(hasher, file.OpenReadStream());
+        return Content(hash);
+    }
+
+    [HttpPost("SHA1")]
+    [ProducesResponseType(StatusCodes.Status200OK)]
+    public async Task<IActionResult> GetSHA1(IFormFile file)
+    {
+        using var hasher = SHA1.Create();
+        var hash = await HashStreamAsync(hasher, file.OpenReadStream());
+        return Content(hash);
+    }
+
+    [HttpPost("SHA256")]
+    [ProducesResponseType(StatusCodes.Status200OK)]
+    public async Task<IActionResult> GetSHA256(IFormFile file)
+    {
+        using var hasher = SHA256.Create();
+        var hash = await HashStreamAsync(hasher, file.OpenReadStream());
+        return Content(hash);
+    }
+
+    [HttpPost("SHA384")]
+    [ProducesResponseType(StatusCodes.Status200OK)]
+    public async Task<IActionResult> GetSHA384(IFormFile file)
+    {
+        using var hasher = SHA384.Create();
+        var hash = await HashStreamAsync(hasher, file.OpenReadStream());
+        return Content(hash);
+    }
+
+    [HttpPost("SHA512")]
+    [ProducesResponseType(StatusCodes.Status200OK)]
+    public async Task<IActionResult> GetSHA512(IFormFile file)
+    {
+        using var hasher = SHA512.Create();
+        var hash = await HashStreamAsync(hasher, file.OpenReadStream());
+        return Content(hash);
     }
 }
