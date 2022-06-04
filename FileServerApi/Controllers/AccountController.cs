@@ -1,60 +1,35 @@
-﻿using System;
-using System.Globalization;
-using System.IdentityModel.Tokens.Jwt;
-using System.Security.Claims;
-using System.Security.Principal;
-using System.Text;
-
-using FileServerApi.Models;
-using FileServerApi.Models.Identity;
-
+﻿using FileServerApi.Models.Identity;
+using FileServerApi.Services.Interfaces;
 using Microsoft.AspNetCore.Mvc;
-
-using Microsoft.IdentityModel.Tokens;
 
 namespace FileServerApi.Controllers;
 
 [ApiController, Route("api/v1/account")]
 public class AccountController : ControllerBase
 {
-    private readonly IConfiguration _Configuration;
+    private readonly IIdentityManager _IdentityManager;
+    private readonly IJWTProvider _JWTProvider;
 
-    public AccountController(IConfiguration Configuration) { _Configuration = Configuration; }
+    public AccountController(IIdentityManager IdentityManager, IJWTProvider JWTProvider)
+    {
+        _IdentityManager = IdentityManager;
+        _JWTProvider = JWTProvider;
+    }
 
     [HttpPost("login")]
     public IActionResult Login(LoginModel Model)
     {
-        var key = _Configuration["JwtAuth:Key"];
-        var issuer = _Configuration["JwtAuth:Issuer"];
-        var audience = _Configuration["JwtAuth:Audience"];
+        if (!_IdentityManager.Login(Model.UserName, Model.Password))
+            return BadRequest();
 
-        var security_key = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(key));
-        var credentials = new SigningCredentials(security_key, SecurityAlgorithms.HmacSha256);
+        var role = _IdentityManager.GetRoles(Model.UserName).FirstOrDefault();
 
-        Claim[] claims =
-        {
-            new(JwtRegisteredClaimNames.Sub, Model.UserName),
-            new("roles", "User"),
-            new("Date", DateTime.Now.ToString(CultureInfo.InvariantCulture)),
-            new(JwtRegisteredClaimNames.Jti, Guid.NewGuid().ToString())
-        };
-
-        var expires = DateTime.Now.AddMinutes(120);
-        var token = new JwtSecurityToken(
-            issuer: issuer,
-            audience: audience,
-            claims: claims,
-            expires: expires,
-            signingCredentials: credentials);
-
-        var token_str = new JwtSecurityTokenHandler().WriteToken(token);
-
+        var token_str = _JWTProvider.GetToken(Model.UserName, role ?? "User", DateTime.Now);
         return Ok(new
         {
             Autorization = $"Bearer {token_str}",
             Token = token_str,
             Model.UserName,
-            Expires = expires,
         });
     }
 }

@@ -1,6 +1,7 @@
 using System.Text;
 
-using FileServerApi.Models.Identity;
+using FileServerApi.Services;
+using FileServerApi.Services.Interfaces;
 
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.IdentityModel.Tokens;
@@ -10,6 +11,9 @@ var builder = WebApplication.CreateBuilder(args);
 
 var services = builder.Services;
 var configuration = builder.Configuration;
+
+services.AddTransient<IIdentityManager, IdentityManager>();
+services.AddTransient<IJWTProvider, JWTProvider>();
 
 services.AddControllers();
 services.AddEndpointsApiExplorer();

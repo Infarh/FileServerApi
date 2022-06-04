@@ -37,7 +37,7 @@ internal static class FilesApi
         return app;
     }
 
-    private static async Task<IResult> CopyFile(IWebHostEnvironment env, IConfiguration cfg, string FileSourceName, string FileDestinationName)
+    private static IResult CopyFile(IWebHostEnvironment env, IConfiguration cfg, string FileSourceName, string FileDestinationName)
     {
         var files_path = cfg.GetValue("ContentDir", "/");
         var dir = env.ContentRootFileProvider.GetDirectoryContents(files_path);
