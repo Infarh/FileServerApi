@@ -3,7 +3,7 @@ using Microsoft.AspNetCore.Mvc;
 
 namespace FileServerApi.Models.Identity;
 
-public class LoginModel
+public class UserPasswordModel
 {
     [Required]
     public string UserName { get; set; } = null!;
