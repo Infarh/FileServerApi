@@ -1,14 +1,17 @@
-﻿using System.Net;
-using System.Net.Mime;
+﻿using System.Net.Mime;
 using System.Security.Cryptography;
+using Microsoft.AspNetCore.Authentication.JwtBearer;
+
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.StaticFiles;
-using Microsoft.Extensions.FileProviders.Physical;
 using Microsoft.Net.Http.Headers;
 
 namespace FileServerApi.Controllers;
 
 [ApiController, Route("api/v1/files")]
+//[Authorize(AuthenticationSchemes = JwtBearerDefaults.AuthenticationScheme)]
+[ProducesResponseType(StatusCodes.Status401Unauthorized)]
 public class FilesController : ControllerBase
 {
     private readonly IWebHostEnvironment _Environment;
@@ -27,6 +30,20 @@ public class FilesController : ControllerBase
     [ProducesResponseType(StatusCodes.Status204NoContent)]
     public IActionResult GetAllFilesNames()
     {
+        _Logger.LogInformation("User {0}", User.Identity?.Name ?? "--null--");
+
+        var dir = _Environment.ContentRootFileProvider.GetDirectoryContents(_Configuration["ContentDir"]);
+        if (dir.Any())
+            return Ok(dir.Select(f => f.Name));
+        return NoContent();
+    }
+
+    [HttpGet("all")]
+    [ProducesResponseType(typeof(string[]), StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status204NoContent)]
+    [Authorize(Roles = "User")]
+    public IActionResult GetAllFilesNames1()
+    {
         var dir = _Environment.ContentRootFileProvider.GetDirectoryContents(_Configuration["ContentDir"]);
         if (dir.Any())
             return Ok(dir.Select(f => f.Name));
@@ -34,7 +51,7 @@ public class FilesController : ControllerBase
     }
 
     [HttpGet("{FileName}/content")]
-    [ProducesResponseType(StatusCodes.Status200OK)]
+    [ProducesResponseType(typeof(FileStreamResult), StatusCodes.Status200OK, MediaTypeNames.Application.Octet)]
     [ProducesResponseType(StatusCodes.Status404NotFound)]
     public IActionResult GetFileContent(string FileName)
     {
