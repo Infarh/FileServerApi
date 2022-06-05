@@ -1,5 +1,8 @@
-﻿using FileServerApi.Models.Identity;
+﻿using System.IdentityModel.Tokens.Jwt;
+
+using FileServerApi.Models.Identity;
 using FileServerApi.Services.Interfaces;
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 
 namespace FileServerApi.Controllers;
@@ -19,15 +22,20 @@ public class AccountController : ControllerBase
     }
 
     [HttpPost("login")]
-    public IActionResult Login(LoginModel Model)
+    [ProducesResponseType(StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status400BadRequest)]
+    public IActionResult Login(UserPasswordModel Model)
     {
         if (!_IdentityManager.Login(Model.UserName, Model.Password))
             return BadRequest();
 
-        var role = _IdentityManager.GetRoles(Model.UserName).FirstOrDefault() ?? "User";
+        var role = _IdentityManager.GetRoles(Model.UserName);
 
         var time = DateTime.Now;
-        var (token_str, expires) = _JWTProvider.GetToken(Model.UserName, role, time);
+        var (token_str, expires) = _JWTProvider.GetToken(time, Model.UserName, role);
+
+        //var encoder = new JwtSecurityTokenHandler();
+        //var token_src = encoder.ReadJwtToken(token_str);
 
         _Logger.LogInformation("Сформирован jwt для {0}. Выдан {1}. Истекает {2}", 
             Model.UserName, time, expires);
@@ -38,6 +46,54 @@ public class AccountController : ControllerBase
             Token = token_str,
             Model.UserName,
             Expires = expires,
+        });
+    }
+
+    [HttpPost("register")]
+    [Authorize(Roles = "Admin")]
+    [ProducesResponseType(StatusCodes.Status200OK)]
+    public IActionResult Register(UserPasswordModel Model)
+    {
+        _IdentityManager.Register(Model.UserName, Model.Password);
+        return Ok(new { Model.UserName });
+    }
+
+    [HttpPost("roles/add/{Role}")]
+    [Authorize(Roles = "Admin")]
+    [ProducesResponseType(StatusCodes.Status200OK)]
+    public IActionResult AddRole(UserModel Model, string Role)
+    {
+        _IdentityManager.AddToRole(Model.UserName, Role);
+        return Ok(new { Model.UserName, Role });
+    }
+
+    [HttpGet("roles/{UserName}")]
+    [ProducesResponseType(typeof(string[]), StatusCodes.Status200OK)]
+    public IActionResult GetRoles(string UserName)
+    {
+        var roles = _IdentityManager.GetRoles(UserName);
+        return Ok(roles);
+    }
+
+    [HttpPost("roles/remove/{Role}")]
+    [Authorize(Roles = "Admin")]
+    [ProducesResponseType(StatusCodes.Status200OK)]
+    public IActionResult RemoveRole(UserModel Model, string Role)
+    {
+        _IdentityManager.RemoveFromRole(Model.UserName, Role);
+        return Ok(new { Model.UserName, Role });
+    }
+
+    [HttpGet("{UserName}/role/{Role}")]
+    [ProducesResponseType(StatusCodes.Status200OK)]
+    public IActionResult IsInRole(string UserName, string Role)
+    {
+        var result = _IdentityManager.IsInRole(UserName, Role);
+        return Ok(new
+        {
+            User = UserName,
+            Role,
+            IsIn = result,
         });
     }
 }

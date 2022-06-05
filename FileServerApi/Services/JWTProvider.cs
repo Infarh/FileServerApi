@@ -13,7 +13,7 @@ public class JWTProvider : IJWTProvider
 
     public JWTProvider(IConfiguration Configuration) => _Configuration = Configuration;
 
-    public (string Token, DateTime Expires) GetToken(string User, string Role, DateTime Time)
+    public (string Token, DateTime Expires) GetToken(DateTime Time, string User, IEnumerable<string> Roles)
     {
         var key = _Configuration["JwtAuth:Key"];
         var issuer = _Configuration["JwtAuth:Issuer"];
@@ -22,13 +22,14 @@ public class JWTProvider : IJWTProvider
         var security_key = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(key));
         var credentials = new SigningCredentials(security_key, SecurityAlgorithms.HmacSha256);
 
-        Claim[] claims =
+        var claims = new Claim[]
         {
             new(JwtRegisteredClaimNames.Sub, User),
-            new("roles", Role),
+            new(ClaimTypes.Name, User),
             new("Date", Time.ToString(CultureInfo.InvariantCulture)),
-            new(JwtRegisteredClaimNames.Jti, Guid.NewGuid().ToString())
-        };
+            new(JwtRegisteredClaimNames.Jti, Guid.NewGuid().ToString()),
+        }.Concat(Roles.Select(role => new Claim(ClaimTypes.Role, role)));
+
 
         var expires = DateTime.Now.AddMinutes(120);
         var token = new JwtSecurityToken(
@@ -38,7 +39,8 @@ public class JWTProvider : IJWTProvider
             expires: expires,
             signingCredentials: credentials);
 
-        var token_str = new JwtSecurityTokenHandler().WriteToken(token);
+        var token_str = new JwtSecurityTokenHandler()
+           .WriteToken(token);
 
         return (token_str, expires);
     }

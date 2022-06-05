@@ -2,5 +2,7 @@
 
 public interface IJWTProvider
 {
-    (string Token, DateTime Expires) GetToken(string User, string Role, DateTime Time);
+    (string Token, DateTime Expires) GetToken(DateTime Time, string User, params string[] Roles) => GetToken(Time, User, (IEnumerable<string>)Roles);
+
+    (string Token, DateTime Expires) GetToken(DateTime Time, string User, IEnumerable<string> Roles);
 }

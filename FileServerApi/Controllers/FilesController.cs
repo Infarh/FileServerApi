@@ -33,6 +33,9 @@ public class FilesController : ControllerBase
     {
         _Logger.LogInformation("User {0}", User.Identity?.Name ?? "--null--");
 
+        var user_claims = User.Claims;
+        var claims = user_claims.Select(c => c.ToString()).ToArray();
+
         var dir = _Environment.ContentRootFileProvider.GetDirectoryContents(_Configuration["ContentDir"]);
         if (dir.Any())
             return Ok(dir.Select(f => f.Name));
@@ -222,6 +225,7 @@ public class FilesController : ControllerBase
     }
 
     [HttpPost("MD5")]
+    [Authorize(Roles = "User")]
     [ProducesResponseType(StatusCodes.Status200OK)]
     public async Task<IActionResult> GetMD5(IFormFile file)
     {
@@ -231,6 +235,7 @@ public class FilesController : ControllerBase
     }
 
     [HttpPost("SHA1")]
+    [Authorize(Roles = "Admin")]
     [ProducesResponseType(StatusCodes.Status200OK)]
     public async Task<IActionResult> GetSHA1(IFormFile file)
     {
